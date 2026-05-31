@@ -10,7 +10,7 @@
 
 | File | Purpose |
 | ---- | ------- |
-| `meshrepair.exe` (Windows) or `meshrepair` (Linux/macOS) | C++ engine executable. The addon runs it with the `--engine` flag and refers to it as the *meshrepair_engine*. |
+| `meshrepair.exe` (Windows) or `meshrepair` (Linux/macOS) | C++ engine executable. The addon runs it with the `--engine` flag. |
 | `meshrepair_blender_<platform>.zip` | Blender addon package that you install through Blender's Add-on UI. |
 
 > Tip: Keep both files together when you download a new build so you know which addon goes with which engine.
@@ -25,9 +25,9 @@
 ### Step 2: Install the engine executable
 
 1. Copy the engine file to a permanent location:
-   - **Windows**: `C:\Program Files\MeshRepair\meshrepair_engine.exe` (rename from `meshrepair.exe` if you want auto-detect to find it).
-   - **Linux**: `/usr/local/bin/meshrepair_engine` (run `chmod +x meshrepair_engine`).
-   - **macOS**: `/Applications/MeshRepair/meshrepair_engine` or `/usr/local/bin/meshrepair_engine`.
+   - **Windows**: `C:\Program Files\MeshRepair\meshrepair.exe`.
+   - **Linux**: `/usr/local/bin/meshrepair` (run `chmod +x meshrepair`).
+   - **macOS**: bundled add-on path, `/Applications/MeshRepair.app/Contents/Helpers/meshrepair`, or `/usr/local/bin/meshrepair`.
 2. Make sure antivirus or Gatekeeper allows the binary to run.
 3. (Optional) Add the folder to your PATH so future updates only require overwriting the binary.
 
@@ -58,9 +58,9 @@
 
 **Auto-detect search paths**
 
-- Windows: `C:\Program Files\MeshRepair\meshrepair_engine.exe`, `<addon>/../build/meshrepair_engine/Release/meshrepair_engine.exe`
-- Linux: `/usr/local/bin/meshrepair_engine`, `/usr/bin/meshrepair_engine`, `<addon>/../build/meshrepair_engine/meshrepair_engine`
-- macOS: `/usr/local/bin/meshrepair_engine`, `/Applications/MeshRepair/meshrepair_engine`, `<addon>/../build/meshrepair_engine/meshrepair_engine`
+- Windows: bundled add-on path, `C:\Program Files\MeshRepair\meshrepair.exe`
+- Linux: bundled add-on path, `/usr/local/bin/meshrepair`, `/usr/bin/meshrepair`
+- macOS: bundled add-on path, `/Applications/MeshRepair.app/Contents/Helpers/meshrepair`, `/usr/local/bin/meshrepair`
 
 ### Step 5: Optional engine preferences
 
@@ -121,7 +121,7 @@ If the `Engine Status` box shows a red "Engine not found" message, return to Pre
 
 ## Troubleshooting
 
-- **Add-on installs but Detect Engine fails**: Place the executable in one of the listed search paths or browse to it manually. Renaming the file to `meshrepair_engine(.exe)` helps auto-detect locate it.
+- **Add-on installs but Detect Engine fails**: Place the executable in one of the listed search paths or browse to it manually.
 - **Test Engine reports "executable not found"**: Ensure the path points to a real file and that it is marked executable (`chmod +x` on Linux/macOS). On Windows disable any SmartScreen blocks.
 - **Test Engine hangs or errors**: Temporarily set Verbosity to `2`, click Test again, and check the Blender console for messages. Confirm that the engine is allowed through your firewall/antivirus.
 - **Socket Mode is enabled unintentionally**: Open Preferences and uncheck `Use Socket Mode`. The addon defaults to managed subprocess mode; socket mode expects that you manually launch `meshrepair --engine --socket <port>` beforehand.

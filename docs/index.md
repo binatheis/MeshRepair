@@ -75,7 +75,7 @@ Photogrammetry (RealityScan, Metashape, 3DF Zephir, ...)
 |---------|-------------|
 | **Hole Detection** | Identifies all boundary loops in the mesh |
 | **Hole Filling** | Triangulates holes using constrained Delaunay methods |
-| **Mesh Preprocessing** | Removes duplicate vertices, non-manifold geometry, and isolated components |
+| **Mesh Preprocessing** | Removes duplicate vertices, non-manifold geometry, isolated components, optional long-edge polygons, and optional thin bridges |
 | **Surface Continuity** | Supports C⁰, C¹, and C² continuity for filled regions |
 | **Blender Integration** | Native addon with Edit Mode selection support |
 | **Command Line Interface** | Batch processing and scripting support |
@@ -120,7 +120,7 @@ Provides direct access to repair operations from Blender's sidebar panel.
 MeshRepair processes meshes through four stages:
 
 ### 1. Preprocessing
-Cleans mesh topology by removing duplicate vertices, non-manifold elements, isolated vertices, and small disconnected components.
+Cleans mesh topology by removing duplicate vertices, non-manifold elements, isolated vertices, small disconnected components, and optional scan artifacts such as long-edge polygons or thin same-hole polygon bridges.
 
 ### 2. Hole Detection
 Identifies all boundary loops (holes) by traversing border halfedges in the mesh structure.

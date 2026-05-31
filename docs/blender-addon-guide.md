@@ -30,7 +30,7 @@ MeshRepair for Blender integrates the MeshRepair engine directly into Blender's 
 |---------|-------------|
 | **Preset Modes** | C⁰, C¹, C² continuity presets |
 | **Edit Mode Support** | Process selected faces only |
-| **Preprocessing** | Topology cleanup before hole filling |
+| **Preprocessing** | Topology cleanup before hole filling, including optional long-edge and thin-bridge cleanup |
 | **Statistics Display** | Operation results and timing |
 | **Undo Support** | Full integration with Blender's undo system |
 | **Multi-threaded** | Parallel processing via external engine |
@@ -155,6 +155,8 @@ Executes topology cleanup operations.
 Operations performed:
 - Duplicate vertex merging
 - Non-manifold geometry removal
+- Optional long-edge polygon removal
+- Optional thin-bridge polygon removal
 - 3-face fan collapse
 - Isolated vertex removal
 
@@ -263,6 +265,7 @@ The Preprocessing panel is open by default; use it to access cleanup settings:
 | **Remove Isolated** | Delete unconnected vertices | Enabled |
 | **Keep Largest Only** | Remove small disconnected components | Disabled |
 | **Remove Long Edges** | Remove polygons containing edges above a length ratio threshold | Disabled |
+| **Remove Thin Bridges** | Remove narrow same-hole boundary-to-boundary polygon bridges | Disabled |
 
 ### Advanced Parameters
 
@@ -271,6 +274,10 @@ The Preprocessing panel is open by default; use it to access cleanup settings:
 | **Non-Manifold Depth** | 10 | 1-20 | Search recursion limit |
 | **Duplicate Threshold** | 0.0001 | 0.0-1.0 | Distance for coincidence detection |
 | **Max Edge Ratio** | 0.125 | 0.0-10.0 | When *Remove Long Edges* is enabled, edges longer than this fraction of the object bounding-box diagonal mark their polygons for removal |
+| **Bridge Face Hops** | 2 | 0-16 | When *Remove Thin Bridges* is enabled, maximum face hops between the boundary edges of a candidate bridge |
+| **Bridge Boundary Separation** | 0 | 0-128 | Boundary-loop separation guard for thin-bridge removal; `0` uses an automatic guard |
+
+Thin-bridge cleanup is designed for scan artifacts where a narrow polygon strip connects two nearby sides of the same open boundary. It skips strips whose two sides belong to different holes, because deleting those strips would merge separate holes into one larger hole.
 
 ---
 
@@ -335,6 +342,7 @@ After operations, the **Results & Statistics** panel (between Engine Status and 
 | **Duplicates** | Vertices merged |
 | **Non-manifold** | Invalid geometry removed |
 | **Long-edge Polygons** | Polygons removed due to edges exceeding the configured max edge ratio |
+| **Thin-bridge Polygons** | Polygons removed by same-hole thin-bridge cleanup |
 | **3-Face Fans** | Configurations collapsed |
 | **Isolated** | Unconnected vertices removed |
 

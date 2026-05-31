@@ -15,6 +15,7 @@ import sys
 from bpy.types import Operator
 from bpy.props import BoolProperty, EnumProperty
 from ..preferences import get_prefs
+from .engine_operators import auto_detect_engine_path
 from ..engine.engine_session import EngineSession
 from ..utils.mesh_export import export_mesh_to_data, MeshExportResult
 from ..utils.mesh_import import import_mesh_from_data
@@ -54,6 +55,9 @@ class MESHREPAIR_OT_Base(Operator):
             return True
 
         # In pipe mode, engine path is required
+        if not prefs.engine_path or not os.path.exists(prefs.engine_path):
+            auto_detect_engine_path(prefs)
+
         if not prefs.engine_path or not os.path.exists(prefs.engine_path):
             msg = "Engine not found. Configure in addon preferences."
             self.report({'ERROR'}, msg)
@@ -239,6 +243,9 @@ class MESHREPAIR_OT_preprocess(MESHREPAIR_OT_Base):
                 "non_manifold_passes": props.preprocess_nm_passes,
                 "remove_long_edges": props.preprocess_remove_long_edges,
                 "max_long_edge_ratio": props.preprocess_max_edge_ratio,
+                "remove_thin_bridges": props.preprocess_remove_thin_bridges,
+                "thin_bridge_max_hops": props.preprocess_thin_bridge_max_hops,
+                "thin_bridge_min_boundary_separation": props.preprocess_thin_bridge_min_boundary_separation,
                 "duplicate_threshold": props.preprocess_duplicate_threshold
             }
 
@@ -261,6 +268,7 @@ class MESHREPAIR_OT_preprocess(MESHREPAIR_OT_Base):
             props.last_3_face_fan_count = stats.get('face_fans_collapsed', 0)
             props.last_isolated_count = stats.get('isolated_vertices_removed', 0)
             props.last_long_edge_count = stats.get('long_edge_polygons_removed', 0)
+            props.last_thin_bridge_count = stats.get('thin_bridge_polygons_removed', 0)
 
             # Get result and import if requested
             if self.return_result:
@@ -613,6 +621,9 @@ class MESHREPAIR_OT_repair_all(MESHREPAIR_OT_Base):
                     "non_manifold_passes": props.preprocess_nm_passes,
                     "remove_long_edges": props.preprocess_remove_long_edges,
                     "max_long_edge_ratio": props.preprocess_max_edge_ratio,
+                    "remove_thin_bridges": props.preprocess_remove_thin_bridges,
+                    "thin_bridge_max_hops": props.preprocess_thin_bridge_max_hops,
+                    "thin_bridge_min_boundary_separation": props.preprocess_thin_bridge_min_boundary_separation,
                     "duplicate_threshold": props.preprocess_duplicate_threshold
                 }
 
@@ -678,6 +689,8 @@ class MESHREPAIR_OT_repair_all(MESHREPAIR_OT_Base):
                 props.last_non_manifold_count = preprocess_stats.get('non_manifold_vertices_removed', 0)
                 props.last_3_face_fan_count = preprocess_stats.get('face_fans_collapsed', 0)
                 props.last_isolated_count = preprocess_stats.get('isolated_vertices_removed', 0)
+                props.last_long_edge_count = preprocess_stats.get('long_edge_polygons_removed', 0)
+                props.last_thin_bridge_count = preprocess_stats.get('thin_bridge_polygons_removed', 0)
 
             # Update props
             hole_stats = fill_response.get('stats', {})

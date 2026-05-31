@@ -19,7 +19,7 @@
 bl_info = {
     "name": "Mesh Repair",
     "author": "MeshRepair Team",
-    "version": (2, 7, 0),
+    "version": (2, 8, 0),
     "blender": (4, 2, 0),
     "location": "View3D > Sidebar > Mesh Repair",
     "description": "Professional mesh hole filling and repair using CGAL algorithms",
@@ -34,6 +34,19 @@ from . import preferences
 from . import properties
 from . import operators
 from . import ui
+
+
+def _auto_detect_engine_on_register():
+    try:
+        prefs = preferences.get_prefs()
+        from .operators.engine_operators import auto_detect_engine_path
+        engine_path = auto_detect_engine_path(prefs)
+        if engine_path:
+            print(f"Mesh Repair: Engine auto-detected at {engine_path}")
+        else:
+            print("Mesh Repair: Bundled engine not found; configure Engine Path in preferences.")
+    except Exception as ex:
+        print(f"Mesh Repair: Engine auto-detection skipped: {ex}")
 
 
 # Registration
@@ -57,6 +70,8 @@ def register():
     bpy.types.Scene.meshrepair_props = bpy.props.PointerProperty(
         type=properties.MeshRepairSceneProperties
     )
+
+    _auto_detect_engine_on_register()
 
     print("Mesh Repair: Registration complete!")
 

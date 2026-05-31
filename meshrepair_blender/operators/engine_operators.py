@@ -10,12 +10,89 @@
 import bpy
 import os
 import platform
+import stat
 from bpy.types import Operator
 from ..preferences import get_prefs
 
 
+def _addon_root():
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+
+def _is_executable(path):
+    if not path or not os.path.isfile(path):
+        return False
+    if platform.system() != "Windows":
+        try:
+            mode = os.stat(path).st_mode
+            if not (mode & stat.S_IXUSR):
+                os.chmod(path, mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+        except OSError:
+            pass
+    return os.access(path, os.X_OK) if platform.system() != "Windows" else os.path.isfile(path)
+
+
+def default_engine_search_paths():
+    addon_dir = _addon_root()
+    system_name = platform.system()
+    machine = platform.machine().lower()
+
+    if system_name == "Windows":
+        return [
+            os.path.join(addon_dir, "bin", "windows", "x64", "meshrepair.exe"),
+            "C:\\Program Files\\MeshRepair\\meshrepair.exe",
+            os.path.join(addon_dir, "..", "build", "Release", "meshrepair.exe"),
+        ]
+
+    if system_name == "Linux":
+        return [
+            os.path.join(addon_dir, "bin", "linux", "x86_64", "meshrepair"),
+            "/usr/local/bin/meshrepair",
+            "/usr/bin/meshrepair",
+            os.path.join(addon_dir, "..", "build", "meshrepair"),
+        ]
+
+    if system_name == "Darwin":
+        arch_dir = "arm64" if machine in ("arm64", "aarch64") else "x86_64"
+        return [
+            os.path.join(addon_dir, "bin", "macos", "universal", "meshrepair"),
+            os.path.join(addon_dir, "bin", "macos", arch_dir, "meshrepair"),
+            "/Applications/MeshRepair.app/Contents/Helpers/meshrepair",
+            "/usr/local/bin/meshrepair",
+            os.path.join(addon_dir, "..", "build", "meshrepair"),
+            os.path.join(addon_dir, "..", "build", "INSTALL", "bin", "meshrepair"),
+        ]
+
+    return []
+
+
+def auto_detect_engine_path(prefs=None, update_prefs=True):
+    if prefs is None:
+        prefs = get_prefs()
+
+    existing_path = os.path.abspath(os.path.expanduser(prefs.engine_path)) if getattr(prefs, "engine_path", "") else ""
+    if existing_path and _is_executable(existing_path):
+        if update_prefs:
+            prefs.engine_path = existing_path
+            prefs.engine_initialized = True
+        return existing_path
+
+    for path in default_engine_search_paths():
+        path = os.path.abspath(os.path.expanduser(path))
+        if _is_executable(path):
+            if update_prefs:
+                prefs.engine_path = path
+                prefs.engine_initialized = True
+                prefs.engine_version = ""
+            return path
+
+    if update_prefs:
+        prefs.engine_initialized = False
+    return ""
+
+
 class MESHREPAIR_OT_detect_engine(Operator):
-    """Detect meshrepair executable (used as engine with --engine)"""
+    """Detect meshrepair executable"""
     bl_idname = "meshrepair.detect_engine"
     bl_label = "Detect Engine"
     bl_description = "Automatically detect meshrepair executable"
@@ -23,50 +100,10 @@ class MESHREPAIR_OT_detect_engine(Operator):
     def execute(self, context):
         prefs = get_prefs()
 
-        # TODO: Implement actual engine detection
-        # Search paths based on platform
-        search_paths = []
-
-        if platform.system() == "Windows":
-            search_paths = [
-                "C:\\Program Files\\MeshRepair\\meshrepair.exe",
-                "C:\\Program Files\\MeshRepair\\meshrepair_engine.exe",
-                os.path.join(os.path.dirname(__file__), "..", "..", "build", "bin", "Release", "meshrepair.exe"),
-            ]
-        elif platform.system() == "Linux":
-            search_paths = [
-                "/usr/local/bin/meshrepair",
-                "/usr/bin/meshrepair",
-                "/usr/local/bin/meshrepair_engine",
-                "/usr/bin/meshrepair_engine",
-                os.path.join(os.path.dirname(__file__), "..", "..", "build", "bin", "meshrepair"),
-            ]
-        elif platform.system() == "Darwin":  # macOS
-            search_paths = [
-                # Preferred: engine bundled with the app (DMG install).
-                "/Applications/MeshRepair.app/Contents/MacOS/meshrepair",
-                # Fallbacks
-                "/usr/local/bin/meshrepair",
-                "/usr/bin/meshrepair",
-                "/usr/local/bin/meshrepair_engine",
-                "/Applications/MeshRepair/meshrepair_engine",
-                os.path.join(os.path.dirname(__file__), "..", "..", "build", "INSTALL", "MeshRepair.app", "Contents", "MacOS", "meshrepair"),
-                os.path.join(os.path.dirname(__file__), "..", "..", "build", "INSTALL", "bin", "meshrepair"),
-            ]
-
-        # Search for engine
-        found = False
-        for path in search_paths:
-            if os.path.exists(path):
-                prefs.engine_path = path
-                prefs.engine_initialized = True
-                prefs.engine_version = "1.0.0"  # TODO: Get actual version
-                found = True
-                self.report({'INFO'}, f"Engine found: {path}")
-                break
-
-        if not found:
-            prefs.engine_initialized = False
+        found_path = auto_detect_engine_path(prefs)
+        if found_path:
+            self.report({'INFO'}, f"Engine found: {found_path}")
+        else:
             self.report({'WARNING'}, "Engine not found in standard locations")
             return {'CANCELLED'}
 
@@ -77,7 +114,7 @@ class MESHREPAIR_OT_test_engine(Operator):
     """Test engine connection"""
     bl_idname = "meshrepair.test_engine"
     bl_label = "Test Engine"
-    bl_description = "Test connection to meshrepair_engine"
+    bl_description = "Test connection to meshrepair"
 
     def execute(self, context):
         from ..engine.engine_session import EngineSession
@@ -159,6 +196,11 @@ class MESHREPAIR_OT_reset_settings(Operator):
         props.preprocess_remove_3_face_fans = True
         props.preprocess_remove_isolated = True
         props.preprocess_keep_largest = False
+        props.preprocess_remove_long_edges = False
+        props.preprocess_max_edge_ratio = 0.125
+        props.preprocess_remove_thin_bridges = False
+        props.preprocess_thin_bridge_max_hops = 2
+        props.preprocess_thin_bridge_min_boundary_separation = 0
         props.preprocess_nm_passes = 10
         props.preprocess_duplicate_threshold = 0.0001
 

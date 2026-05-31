@@ -10,7 +10,7 @@
 """
 Engine communication module
 
-This module handles communication with the meshrepair_engine executable via IPC.
+This module handles communication with the meshrepair executable via IPC.
 """
 
 from .connection import read_message, write_message

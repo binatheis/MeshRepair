@@ -19,6 +19,8 @@ import threading
 import queue
 import sys
 import socket
+import os
+import stat
 from .connection import write_message, connection_thread_func
 
 
@@ -41,7 +43,7 @@ def stderr_thread_func(stream):
 
 class EngineManager:
     """
-    Manages the meshrepair_engine connection (subprocess or socket).
+    Manages the meshrepair connection (subprocess or socket).
 
     Responsibilities:
     - Spawn engine process (pipe mode) or connect to socket (socket mode)
@@ -55,7 +57,7 @@ class EngineManager:
         Initialize engine manager.
 
         Args:
-            engine_path: Path to meshrepair_engine executable
+            engine_path: Path to meshrepair executable
             socket_mode: If True, connect via TCP socket instead of subprocess
             socket_host: Hostname for socket connection
             socket_port: Port for socket connection
@@ -98,6 +100,11 @@ class EngineManager:
     def _start_subprocess_mode(self):
         """Start engine as subprocess (pipe mode)."""
         try:
+            if sys.platform != 'win32' and self.engine_path:
+                mode = os.stat(self.engine_path).st_mode
+                if not (mode & stat.S_IXUSR):
+                    os.chmod(self.engine_path, mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
             # Build command line arguments
             args = [self.engine_path, '--engine']
             if self.verbosity > 0:

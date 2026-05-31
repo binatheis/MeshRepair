@@ -107,6 +107,28 @@ class MeshRepairSceneProperties(PropertyGroup):
         precision=3
     )
 
+    preprocess_remove_thin_bridges: BoolProperty(
+        name="Remove Thin Bridges",
+        description="Remove narrow boundary-to-boundary polygon bridges",
+        default=False
+    )
+
+    preprocess_thin_bridge_max_hops: IntProperty(
+        name="Bridge Face Hops",
+        description="Maximum shared-edge face hops between far boundary edges",
+        default=2,
+        min=0,
+        max=16
+    )
+
+    preprocess_thin_bridge_min_boundary_separation: IntProperty(
+        name="Bridge Boundary Separation",
+        description="Minimum boundary-edge separation guard (0 = auto)",
+        default=0,
+        min=0,
+        max=128
+    )
+
     preprocess_nm_passes: IntProperty(
         name="Non-Manifold Max Depth",
         description="Maximum recursion depth for local non-manifold removal (typically converges in 2-3 iterations)",
@@ -196,6 +218,7 @@ class MeshRepairSceneProperties(PropertyGroup):
     last_3_face_fan_count: IntProperty(default=0)
     last_isolated_count: IntProperty(default=0)
     last_long_edge_count: IntProperty(default=0)
+    last_thin_bridge_count: IntProperty(default=0)
 
     # Hole filling results
     last_hole_stats: BoolProperty(default=False)

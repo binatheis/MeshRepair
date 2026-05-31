@@ -18,9 +18,7 @@
 #include <string>
 #include <vector>
 
-#define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
-#include <GL/glew.h>
 
 #include "dnd_glfw.h"
 
@@ -46,6 +44,7 @@
 #include "config.h"
 #include "local_batch_queue.h"
 #include "logger.h"
+#include "meshrepair_gui_font.h"
 
 namespace fs = std::filesystem;
 using MeshRepair::CompletedJob;
@@ -76,6 +75,9 @@ struct GuiOptions {
     int nonManifoldPasses            = 10;
     bool preprocessRemoveLongEdges   = false;
     double preprocessMaxEdgeRatio    = 0.125;
+    bool preprocessRemoveThinBridges = false;
+    int preprocessThinBridgeMaxHops  = 2;
+    int preprocessThinBridgeMinBoundarySeparation = 0;
     int numThreads                   = 0;
     int queueSize                    = 10;
     bool usePartitioned              = true;
@@ -197,45 +199,6 @@ deriveOutputPath(const std::string& inputPath, const std::string& postfix)
     }
     fs::path outName = fs::path(stem + postfix + ext);
     return (dir / outName).string();
-}
-
-static std::string
-findFontPath(const char* argv0)
-{
-    std::vector<fs::path> candidates;
-#ifdef MESHREPAIR_GUI_FONT_PATH
-    candidates.emplace_back(fs::path(MESHREPAIR_GUI_FONT_PATH));
-#endif
-
-    fs::path exeDir = fs::current_path();
-    if (argv0 && argv0[0] != '\0') {
-        std::error_code ec;
-        fs::path exePath = fs::weakly_canonical(fs::path(argv0), ec);
-        if (!ec && !exePath.empty()) {
-            exeDir = exePath.parent_path();
-        }
-    }
-
-#if defined(__APPLE__)
-    // .app bundle layout: <App>.app/Contents/MacOS/<exe>
-    // Fonts live in: <App>.app/Contents/Resources/fonts/
-    if (exeDir.filename() == "MacOS" && exeDir.parent_path().filename() == "Contents") {
-        fs::path resourcesDir = exeDir.parent_path() / "Resources";
-        candidates.emplace_back(resourcesDir / "fonts" / "FiraSans-Medium.otf");
-    }
-#endif
-
-    candidates.emplace_back(exeDir / "fonts" / "FiraSans-Medium.otf");
-    candidates.emplace_back(exeDir / ".." / "share" / "meshrepair-gui" / "fonts" / "FiraSans-Medium.otf");
-
-    for (const auto& c : candidates) {
-        std::error_code ec;
-        if (!c.empty() && fs::exists(c, ec)) {
-            return c.string();
-        }
-    }
-
-    return {};
 }
 
 static std::string
@@ -542,6 +505,12 @@ loadAppConfig(AppState& app, const std::string& path)
                 app.options.preprocessRemoveLongEdges = parseBool(value);
             } else if (key == "MaxEdgeRatio" && parseDouble(value, doubleVal)) {
                 app.options.preprocessMaxEdgeRatio = doubleVal;
+            } else if (key == "RemoveThinBridges") {
+                app.options.preprocessRemoveThinBridges = parseBool(value);
+            } else if (key == "ThinBridgeMaxHops" && parseInt(value, intVal)) {
+                app.options.preprocessThinBridgeMaxHops = intVal;
+            } else if (key == "ThinBridgeMinBoundarySeparation" && parseInt(value, intVal)) {
+                app.options.preprocessThinBridgeMinBoundarySeparation = intVal;
             } else if (key == "NonManifoldPasses" && parseInt(value, intVal)) {
                 app.options.nonManifoldPasses = intVal;
             } else if (key == "NumThreads" && parseInt(value, intVal)) {
@@ -635,6 +604,9 @@ saveAppConfig(const AppState& app, const ImGuiIO& io, const std::string& path)
     file << "KeepLargest=" << (app.options.preprocessKeepLargest ? 1 : 0) << "\n";
     file << "RemoveLongEdges=" << (app.options.preprocessRemoveLongEdges ? 1 : 0) << "\n";
     file << "MaxEdgeRatio=" << app.options.preprocessMaxEdgeRatio << "\n";
+    file << "RemoveThinBridges=" << (app.options.preprocessRemoveThinBridges ? 1 : 0) << "\n";
+    file << "ThinBridgeMaxHops=" << app.options.preprocessThinBridgeMaxHops << "\n";
+    file << "ThinBridgeMinBoundarySeparation=" << app.options.preprocessThinBridgeMinBoundarySeparation << "\n";
     file << "NonManifoldPasses=" << app.options.nonManifoldPasses << "\n";
     file << "NumThreads=" << app.options.numThreads << "\n";
     file << "QueueSize=" << app.options.queueSize << "\n";
@@ -695,6 +667,10 @@ buildJobConfig(const GuiOptions& opts)
     cfg.preprocess_opt.non_manifold_passes    = static_cast<size_t>(std::max(opts.nonManifoldPasses, 1));
     cfg.preprocess_opt.remove_long_edges      = opts.preprocessRemoveLongEdges;
     cfg.preprocess_opt.long_edge_max_ratio    = opts.preprocessMaxEdgeRatio;
+    cfg.preprocess_opt.remove_thin_bridges    = opts.preprocessRemoveThinBridges;
+    cfg.preprocess_opt.thin_bridge_max_hops   = static_cast<size_t>(std::max(opts.preprocessThinBridgeMaxHops, 0));
+    cfg.preprocess_opt.thin_bridge_min_boundary_separation = static_cast<size_t>(
+        std::max(opts.preprocessThinBridgeMinBoundarySeparation, 0));
     cfg.preprocess_opt.verbose                = opts.verbosity >= 2;
     cfg.preprocess_opt.debug                  = opts.verbosity >= 4;
 
@@ -1615,6 +1591,7 @@ int
 main(int argc, char** argv)
 {
     (void)argc;
+    (void)argv;
 
     AppState app {};
     std::string configPath = configFilePath();
@@ -1641,7 +1618,7 @@ main(int argc, char** argv)
     glfwWindowHint(GLFW_FLOATING, GLFW_TRUE);
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
 #if defined(__APPLE__)
-    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
 #endif
 
     GLFWwindow* window = glfwCreateWindow(windowWidth, windowHeight, "MeshRepair GUI", nullptr, nullptr);
@@ -1665,14 +1642,6 @@ main(int argc, char** argv)
     dnd_glfw::init(window, dndCallbacks, &app);
 
     glfwMakeContextCurrent(window);
-    glewExperimental  = GL_TRUE;
-    GLenum glewStatus = glewInit();
-    if (glewStatus != GLEW_OK) {
-        fprintf(stderr, "GLEW init failed: %s\n", reinterpret_cast<const char*>(glewGetErrorString(glewStatus)));
-        glfwDestroyWindow(window);
-        glfwTerminate();
-        return 1;
-    }
     glfwSwapInterval(1);
 
     const char* glslVersion = "#version 330";
@@ -1700,16 +1669,13 @@ main(int argc, char** argv)
     glfwShowWindow(window);
 
     const ImWchar* glyphRanges = io.Fonts->GetGlyphRangesDefault();
-    std::string fontPath       = findFontPath(argv ? argv[0] : nullptr);
-    if (!fontPath.empty()) {
-        ImFont* font = io.Fonts->AddFontFromFileTTF(fontPath.c_str(), 16.0f, nullptr, glyphRanges);
-        if (font) {
-            io.FontDefault = font;
-        } else {
-            fprintf(stderr, "Failed to load font at %s, using default ImGui font.\n", fontPath.c_str());
-        }
+    ImFont* font              = io.Fonts->AddFontFromMemoryCompressedTTF(
+        meshrepair_gui_fira_sans_compressed_data, static_cast<int>(meshrepair_gui_fira_sans_compressed_size), 16.0f,
+        nullptr, glyphRanges);
+    if (font) {
+        io.FontDefault = font;
     } else {
-        fprintf(stderr, "No FiraSans font found; using default ImGui font.\n");
+        fprintf(stderr, "Failed to load embedded FiraSans font, using default ImGui font.\n");
     }
 
     ImGui_ImplGlfw_InitForOpenGL(window, true);
@@ -1763,7 +1729,6 @@ main(int argc, char** argv)
             if (ImGui::BeginTable("layout", 1, ImGuiTableFlags_SizingStretchProp)) {
                 // Inputs / Outputs
                 ImVec2 buttonSize = { 80.0f, ImGui::GetFrameHeight() };
-                float space       = buttonSize.x + ImGui::GetStyle().ItemSpacing.x * 2.0f;
                 float fistTab     = 100.0f;
 
                 ImGui::TableNextRow();
@@ -1880,10 +1845,24 @@ main(int argc, char** argv)
                     ImGui::Checkbox("Remove 3-face fans", &app.options.preprocessRemove3FaceFans);
                     ImGui::Checkbox("Remove isolated vertices", &app.options.preprocessRemoveIsolated);
                     ImGui::Checkbox("Keep largest component", &app.options.preprocessKeepLargest);
+                    ImGui::Checkbox("Remove thin bridges", &app.options.preprocessRemoveThinBridges);
+                    {
+                        DisableGuard guard(!app.options.preprocessRemoveThinBridges);
+                        if (ImGui::InputInt("Bridge hops", &app.options.preprocessThinBridgeMaxHops)) {
+                            if (app.options.preprocessThinBridgeMaxHops < 0) {
+                                app.options.preprocessThinBridgeMaxHops = 0;
+                            }
+                        }
+                        if (ImGui::InputInt("Bridge boundary",
+                                            &app.options.preprocessThinBridgeMinBoundarySeparation)) {
+                            if (app.options.preprocessThinBridgeMinBoundarySeparation < 0) {
+                                app.options.preprocessThinBridgeMinBoundarySeparation = 0;
+                            }
+                        }
+                    }
                     ImGui::AlignTextToFramePadding();
-                    ImGui::Text("Non-manifold passes");
-                    ImGui::InputInt("##non-manifold-passes", &app.options.nonManifoldPasses);
-                    ImGui::Checkbox("Holes only (partitioned mode)", &app.options.holesOnly);
+                    //ImGui::Text("Non-manifold passes");
+                    ImGui::InputInt("Non-manifold passes##non-manifold-passes", &app.options.nonManifoldPasses);
 
                     ImGui::TableNextColumn();
                     ImGui::SeparatorText("Hole Filling");
@@ -1907,6 +1886,7 @@ main(int argc, char** argv)
                     ImGui::Checkbox("Use 3D Delaunay", &app.options.use3dDelaunay);
                     ImGui::Checkbox("Skip cubic search", &app.options.skipCubicSearch);
                     ImGui::Checkbox("Refine patch", &app.options.refine);
+                    ImGui::Checkbox("Holes only (partitioned mode)", &app.options.holesOnly);
                     ImGui::EndTable();
                 }
 

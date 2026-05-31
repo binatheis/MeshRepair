@@ -61,6 +61,11 @@ class MESHREPAIR_PT_Preprocessing(MESHREPAIR_PT_SubPanel):
         row = box_col.row(align=True)
         row.enabled = props.preprocess_remove_long_edges
         row.prop(props, "preprocess_max_edge_ratio")
+        box_col.prop(props, "preprocess_remove_thin_bridges")
+        row = box_col.row(align=True)
+        row.enabled = props.preprocess_remove_thin_bridges
+        row.prop(props, "preprocess_thin_bridge_max_hops")
+        row.prop(props, "preprocess_thin_bridge_min_boundary_separation")
         box_col.prop(props, "preprocess_remove_3_face_fans")
         box_col.prop(props, "preprocess_remove_isolated")
         box_col.prop(props, "preprocess_keep_largest")
@@ -155,6 +160,7 @@ class MESHREPAIR_PT_Results(MESHREPAIR_PT_SubPanel):
             box_col.label(text=f"  Duplicates removed: {props.last_duplicate_count}", icon='BLANK1')
             box_col.label(text=f"  Non-manifold removed: {props.last_non_manifold_count}", icon='BLANK1')
             box_col.label(text=f"  Long-edge polygons removed: {props.last_long_edge_count}", icon='BLANK1')
+            box_col.label(text=f"  Thin-bridge polygons removed: {props.last_thin_bridge_count}", icon='BLANK1')
             box_col.label(text=f"  3-face fans collapsed: {props.last_3_face_fan_count}", icon='BLANK1')
             box_col.label(text=f"  Isolated removed: {props.last_isolated_count}", icon='BLANK1')
 

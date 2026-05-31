@@ -35,6 +35,11 @@ class MESHREPAIR_OT_preset_preprocess(Operator):
             props.preprocess_remove_3_face_fans = False
             props.preprocess_remove_isolated = True
             props.preprocess_keep_largest = False
+            props.preprocess_remove_long_edges = False
+            props.preprocess_max_edge_ratio = 0.125
+            props.preprocess_remove_thin_bridges = False
+            props.preprocess_thin_bridge_max_hops = 2
+            props.preprocess_thin_bridge_min_boundary_separation = 0
             props.preprocess_nm_passes = 1  # Not used (non-manifold removal disabled)
         elif self.preset == 'FULL':
             props.preprocess_remove_duplicates = True
@@ -42,6 +47,11 @@ class MESHREPAIR_OT_preset_preprocess(Operator):
             props.preprocess_remove_3_face_fans = True
             props.preprocess_remove_isolated = True
             props.preprocess_keep_largest = False
+            props.preprocess_remove_long_edges = False
+            props.preprocess_max_edge_ratio = 0.125
+            props.preprocess_remove_thin_bridges = False
+            props.preprocess_thin_bridge_max_hops = 2
+            props.preprocess_thin_bridge_min_boundary_separation = 0
             props.preprocess_nm_passes = 10
 
         self.report({'INFO'}, f"Applied {self.preset} preprocessing preset")
@@ -87,6 +97,7 @@ class MESHREPAIR_OT_clear_stats(Operator):
         props.last_3_face_fan_count = 0
         props.last_isolated_count = 0
         props.last_long_edge_count = 0
+        props.last_thin_bridge_count = 0
 
         props.last_hole_stats = False
         props.last_hole_count = 0

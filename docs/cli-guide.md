@@ -79,6 +79,8 @@ Topology cleanup operations:
 |-----------|-------------|
 | **Duplicate Merging** | Combines vertices at identical positions |
 | **Non-Manifold Removal** | Removes edges with >2 adjacent faces and vertices with non-disk neighborhoods |
+| **Long-Edge Removal** | Optionally removes polygons with edges longer than a mesh-relative threshold |
+| **Thin-Bridge Removal** | Optionally removes narrow polygon bridges that connect two sides of the same boundary loop |
 | **3-Face Fan Collapse** | Simplifies degenerate vertex configurations |
 | **Isolated Vertex Removal** | Deletes vertices with no face connections |
 | **Small Component Removal** | Removes disconnected mesh fragments below threshold |
@@ -258,9 +260,14 @@ meshrepair model.obj fixed.obj --no-remove-non-manifold --no-remove-3facefan
 
 # Remove polygons with long edges (relative to bbox)
 meshrepair model.obj fixed.obj --remove-long-edges 0.25
+
+# Remove narrow boundary-to-boundary polygon bridges
+meshrepair model.obj fixed.obj --remove-thin-bridges 2
 ```
 
 `--remove-long-edges <r>` removes any polygon whose edge length exceeds `r` times the mesh bounding-box diagonal. The diagonal is computed once on the full mesh before partitioning so all threads and partitions use the same reference. Use small ratios (e.g. 0.1–0.3) to aggressively prune stray “spike” triangles or extremely stretched polygons; leave this option off for CAD-like meshes where long edges are intentional.
+
+`--remove-thin-bridges <n>` removes narrow polygon strips that connect two boundary edges reachable within `n` shared-edge face hops. The operation is conservative around holes: it only removes bridges whose two sides are on the same boundary loop. If a strip separates two different holes, it is preserved so preprocessing does not merge those holes. `--thin-bridge-min-boundary-sep <n>` controls how far apart the two boundary edges must be along the boundary loop; `0` uses an automatic guard based on the hop count.
 
 ### Algorithm Selection
 
@@ -472,6 +479,10 @@ meshrepair --engine [engine-options]
 | `--no-remove-3facefan` | off | Keep 3-face fan configurations |
 | `--no-remove-isolated` | off | Keep isolated vertices |
 | `--no-remove-small` | off | Keep small components |
+| `--remove-long-edges <r>` | off | Remove polygons containing edges longer than `r` × mesh bbox diagonal |
+| `--remove-thin-bridges <n>` | off | Remove narrow same-hole polygon bridges within `n` face hops |
+| `--thin-bridge-min-boundary-sep <n>` | auto | Boundary-loop separation guard for thin-bridge removal (`0` = auto) |
+| `--non-manifold-passes <n>` | 10 | Non-manifold removal recursion depth |
 
 ### Performance Options
 
@@ -483,6 +494,8 @@ meshrepair --engine [engine-options]
 | `--cgal-loader` | off | Force CGAL OBJ loader |
 
 Partitioned mode caps partitions to the number of holes and a minimum edge budget (`--min-edges`) to avoid oversharding tiny holes; lowering `--min-edges` increases parallelism on very small holes at the cost of overhead.
+
+The current build does not require OpenMP or oneTBB. Parallel work is handled by MeshRepair's worker pipeline; CGAL operations used by the CLI are not invoked with CGAL parallel tags.
 
 ### Output Options
 
