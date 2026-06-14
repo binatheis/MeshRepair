@@ -4,7 +4,7 @@
 
 - Blender 3.3 or newer (tested through Blender 4.x).
 - Supported platforms: Windows 10/11 x64, Linux x64, macOS 12+ (Intel or Apple Silicon).
-- Latest MeshRepair release archive (`MeshRepair_<version>_<platform>.zip`). Download from Patreon: https://www.patreon.com/c/MadProcessor/posts?filters%5Btag%5D=meshrepair
+- Latest MeshRepair 2.8.0 or newer release archive (`MeshRepair_<version>_<platform>.zip`). Download from Patreon: https://www.patreon.com/c/MadProcessor/posts?filters%5Btag%5D=meshrepair
 
 ## What's in the release archive?
 
@@ -14,6 +14,7 @@
 | `meshrepair_blender_<platform>.zip` | Blender addon package that you install through Blender's Add-on UI. |
 
 > Tip: Keep both files together when you download a new build so you know which addon goes with which engine.
+> MeshRepair 2.8.0 pairs with Blender addon version 2.8.0.
 
 ## Quick Install (Recommended)
 
@@ -70,6 +71,8 @@ After `Engine Path` is set you can tweak:
 - **Verbosity Level** – `0=Quiet`, `1=Info (default)`, `2=Verbose`, `3=Debug`, `4=Trace`. Trace writes detailed logs and PLY dumps; set `Debug Output Directory` first.
 - **Debug Output Directory** – Where PLY dumps/logs are written when Verbosity is `4`. Leave blank to use Blender's temp directory.
 - **Use Socket Mode (debug only)** – Enables remote engines. When checked, specify `Socket Host` and `Socket Port`, then manually launch the engine in a terminal: `meshrepair --engine --socket <port>`. Leave this disabled for normal usage.
+
+The Preprocessing panel includes optional long-edge cleanup and thin-bridge cleanup. Thin-bridge cleanup removes narrow strips only when both sides belong to the same hole boundary, so it does not intentionally merge separate holes.
 
 ---
 

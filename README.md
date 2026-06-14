@@ -9,6 +9,7 @@ A cross-platform CLI tool for filling holes in triangle meshes using CGAL's impl
 - **Partitioned Parallel Filling**: Default mode balances work across threads, capping partitions to hole count and edge budget
 - **Global Hole Size Guards**: Max-diameter checks use the full mesh bounding box (partition-safe) to avoid over-skipping large holes
 - **Tunable Workload**: Minimum-edges threshold per partition (`--min-edges`) to avoid oversharding tiny holes
+- **Preprocessing Cleanup**: Optional long-edge and thin-bridge polygon removal for damaged scan meshes
 - **Multi-Format Support**: OBJ, PLY, OFF formats
 - **Scalable**: Optimized for meshes with millions of polygons
 - **Cross-Platform**: Windows, Linux, macOS
@@ -29,10 +30,10 @@ Based on:
 
 ### Prerequisites
 
-- C++17 compiler (GCC 7+, Clang 5+, MSVC 2017+)
+- C++20 compiler (recent GCC, Clang, or MSVC)
 - CMake 3.12+
-- CGAL (located at `/mnt/e/GH/cgal/` or set `CGAL_DIR`)
-- Eigen3 3.2+ (located at `/mnt/e/UBS/include/eigen3/` or set `EIGEN3_INCLUDE_DIR`)
+- CGAL (set `CGAL_DIR` or `CMAKE_PREFIX_PATH` if it is not installed in a standard location)
+- Eigen3 3.2+ (set `EIGEN3_INCLUDE_DIR` or `CMAKE_PREFIX_PATH` if needed)
 
 ### Dependencies
 
@@ -40,6 +41,9 @@ Based on:
 - **Engine IPC**: nlohmann/json (fetched automatically if missing)
 - **Fast OBJ loading**: RapidOBJ (header-only, optional; falls back to CGAL loader)
 - **Logging**: spdlog (optional; falls back to std::ostream logger)
+- **GUI only**: GLFW, static GLEW, nativefiledialog-extended, and Dear ImGui sources (`IMGUI_DIR`)
+
+OpenMP and oneTBB are not required by the current build. MeshRepair uses its own `std::thread` worker pipeline, and CGAL calls are kept on the sequential code path unless a future feature explicitly opts into CGAL parallel tags.
 
 ### Build Steps
 
@@ -85,19 +89,19 @@ make -j$(sysctl -n hw.ncpu)
 ### Basic
 
 ```bash
-./mesh_hole_filler input.obj output.obj
+./meshrepair input.obj output.obj
 ```
 
 ### With Options
 
 ```bash
-./mesh_hole_filler input.ply output.ply -v 2 --validate
+./meshrepair input.ply output.ply -v 2 --validate
 ```
 
 ### Advanced
 
 ```bash
-./mesh_hole_filler mesh.obj repaired.obj \
+./meshrepair mesh.obj repaired.obj \
     --continuity 2 \
     --max-boundary 500 \
     --max-diameter 0.05 \
@@ -138,10 +142,14 @@ Engine/Blender integration uses the same guards (`max_boundary`, `max_diameter`)
 | `--no-remove-duplicates` | Disable duplicate vertex removal | enabled |
 | `--no-remove-non-manifold` | Disable non-manifold vertex removal | enabled |
 | `--remove-long-edges <r>` | Remove polygons with any edge longer than `r` × mesh bbox diagonal (disabled by default) | off |
+| `--remove-thin-bridges <n>` | Remove narrow boundary-to-boundary polygon bridges within `n` face hops | off |
+| `--thin-bridge-min-boundary-sep <n>` | Boundary-loop separation guard for thin-bridge removal (`0` = auto) | auto |
 | `--no-remove-isolated` | Disable isolated vertex cleanup | enabled |
 | `--no-remove-small` | Disable small component removal | enabled |
 | `--non-manifold-passes <n>` | Number of non-manifold removal passes | 10 |
 | Verbosity 4 | Dump intermediate meshes as binary PLY | off |
+
+Thin-bridge removal only deletes bridges whose two sides belong to the same boundary loop. Bridges separating two different holes are preserved so preprocessing does not merge holes into one larger opening.
 
 ## Performance
 
@@ -159,37 +167,42 @@ The partitioned filler runs by default; partitions are capped by hole count and 
 
 ### Fill all holes with default settings
 ```bash
-./mesh_hole_filler damaged.obj repaired.obj
+./meshrepair damaged.obj repaired.obj
 ```
 
 ### High-quality smooth filling (C² continuity)
 ```bash
-./mesh_hole_filler input.ply output.ply --continuity 2
+./meshrepair input.ply output.ply --continuity 2
 ```
 
 ### Fast filling for large models
 ```bash
-./mesh_hole_filler large.obj fixed.obj --skip-cubic --no-refine
+./meshrepair large.obj fixed.obj --skip-cubic --no-refine
 ```
 
 ### Detailed analysis
 ```bash
-./mesh_hole_filler mesh.obj result.obj -v 2 --validate
+./meshrepair mesh.obj result.obj -v 2 --validate
 ```
 
 ### Preprocessing for damaged meshes
 ```bash
-./mesh_hole_filler damaged.obj repaired.obj --preprocess --verbose
+./meshrepair damaged.obj repaired.obj --preprocess --verbose
 ```
 
 ### Preprocessing with custom passes
 ```bash
-./mesh_hole_filler noisy.ply clean.ply --preprocess --non-manifold-passes 3
+./meshrepair noisy.ply clean.ply --preprocess --non-manifold-passes 3
+```
+
+### Remove narrow polygon bridges before filling
+```bash
+./meshrepair scan.obj repaired.obj --remove-thin-bridges 2
 ```
 
 ### Debug mode (dump intermediate meshes)
 ```bash
-./mesh_hole_filler input.obj output.obj --preprocess --debug --verbose
+./meshrepair input.obj output.obj --preprocess --debug --verbose
 ```
 This creates:
 - `debug_duplicates.ply` - After duplicate vertex removal
@@ -200,7 +213,7 @@ This creates:
 ## Output Example
 
 ```
-=== MeshHoleFiller v1.0.0 ===
+MeshRepair v2.8.0
 
 Loading mesh from: input.obj
   Vertices: 12483

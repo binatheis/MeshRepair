@@ -34,15 +34,18 @@ struct CommandLineArgs {
     std::string proc_name;
 
     // Preprocessing options
-    bool enable_preprocessing              = true;
-    bool preprocess_remove_duplicates      = true;
-    bool preprocess_remove_non_manifold    = true;
-    bool preprocess_remove_3_face_fans     = true;
-    bool preprocess_remove_isolated        = true;
-    bool preprocess_keep_largest_component = true;
-    size_t non_manifold_passes             = 10;
-    bool preprocess_remove_long_edges      = false;
-    double preprocess_max_edge_ratio       = 0.125;
+    bool enable_preprocessing                             = true;
+    bool preprocess_remove_duplicates                     = true;
+    bool preprocess_remove_non_manifold                   = true;
+    bool preprocess_remove_3_face_fans                    = true;
+    bool preprocess_remove_isolated                       = true;
+    bool preprocess_keep_largest_component                = true;
+    size_t non_manifold_passes                            = 10;
+    bool preprocess_remove_long_edges                     = false;
+    double preprocess_max_edge_ratio                      = 0.125;
+    bool preprocess_remove_thin_bridges                   = false;
+    size_t preprocess_thin_bridge_max_hops                = 2;
+    size_t preprocess_thin_bridge_min_boundary_separation = 0;
 
     // Threading options
     size_t num_threads   = 0;     // 0 = auto (hw_cores / 2)
@@ -93,6 +96,8 @@ struct CommandLineArgs {
                 filling_options.skip_cubic_search = true;
             } else if (arg == "--no-refine") {
                 filling_options.refine = false;
+            } else if (arg == "--step-debug") {
+                filling_options.partition_step_debug = true;
             } else if (arg == "--holes_only") {
                 filling_options.holes_only = true;
             } else if (arg == "--per-hole-info") {
@@ -131,6 +136,11 @@ struct CommandLineArgs {
             } else if (arg == "--remove-long-edges" && i + 1 < argc) {
                 preprocess_remove_long_edges = true;
                 preprocess_max_edge_ratio    = std::stod(argv[++i]);
+            } else if (arg == "--remove-thin-bridges" && i + 1 < argc) {
+                preprocess_remove_thin_bridges  = true;
+                preprocess_thin_bridge_max_hops = std::stoul(argv[++i]);
+            } else if (arg == "--thin-bridge-min-boundary-sep" && i + 1 < argc) {
+                preprocess_thin_bridge_min_boundary_separation = std::stoul(argv[++i]);
             } else if (arg == "--non-manifold-passes" && i + 1 < argc) {
                 non_manifold_passes = std::stoul(argv[++i]);
                 if (non_manifold_passes == 0) {
@@ -260,16 +270,19 @@ cli_main(int argc, char** argv)
         }
 
         PreprocessingOptions prep_opts;
-        prep_opts.remove_duplicates      = args.preprocess_remove_duplicates;
-        prep_opts.remove_non_manifold    = args.preprocess_remove_non_manifold;
-        prep_opts.remove_3_face_fans     = args.preprocess_remove_3_face_fans;
-        prep_opts.remove_isolated        = args.preprocess_remove_isolated;
-        prep_opts.keep_largest_component = args.preprocess_keep_largest_component;
-        prep_opts.non_manifold_passes    = args.non_manifold_passes;
-        prep_opts.remove_long_edges      = args.preprocess_remove_long_edges;
-        prep_opts.long_edge_max_ratio    = args.preprocess_max_edge_ratio;
-        prep_opts.verbose                = verbose;
-        prep_opts.debug                  = debug;
+        prep_opts.remove_duplicates                   = args.preprocess_remove_duplicates;
+        prep_opts.remove_non_manifold                 = args.preprocess_remove_non_manifold;
+        prep_opts.remove_3_face_fans                  = args.preprocess_remove_3_face_fans;
+        prep_opts.remove_isolated                     = args.preprocess_remove_isolated;
+        prep_opts.keep_largest_component              = args.preprocess_keep_largest_component;
+        prep_opts.non_manifold_passes                 = args.non_manifold_passes;
+        prep_opts.remove_long_edges                   = args.preprocess_remove_long_edges;
+        prep_opts.long_edge_max_ratio                 = args.preprocess_max_edge_ratio;
+        prep_opts.remove_thin_bridges                 = args.preprocess_remove_thin_bridges;
+        prep_opts.thin_bridge_max_hops                = args.preprocess_thin_bridge_max_hops;
+        prep_opts.thin_bridge_min_boundary_separation = args.preprocess_thin_bridge_min_boundary_separation;
+        prep_opts.verbose                             = verbose;
+        prep_opts.debug                               = debug;
 
         // Preprocess soup directly (no mesh->soup extraction!)
         prep_stats = MeshPreprocessor::preprocess_soup(soup, mesh, prep_opts);
@@ -280,6 +293,7 @@ cli_main(int argc, char** argv)
                         << "Duplicate vertices merged: " << prep_stats.duplicates_merged << "\n"
                         << "Non-manifold polygons removed: " << prep_stats.non_manifold_vertices_removed << "\n"
                         << "Long-edge polygons removed: " << prep_stats.long_edge_polygons_removed << "\n"
+                        << "Thin-bridge polygons removed: " << prep_stats.thin_bridge_polygons_removed << "\n"
                         << "3-face fans collapsed: " << prep_stats.face_fans_collapsed << "\n"
                         << "Isolated vertices removed: " << prep_stats.isolated_vertices_removed << "\n"
                         << "Connected components found: " << prep_stats.connected_components_found << "\n"
@@ -451,6 +465,9 @@ cli_main(int argc, char** argv)
             if (prep_stats.long_edge_time_ms > 0.0) {
                 stats_report << "      Long-edge removal: " << prep_stats.long_edge_time_ms << " ms\n";
             }
+            if (prep_stats.thin_bridge_time_ms > 0.0) {
+                stats_report << "      Thin-bridge removal: " << prep_stats.thin_bridge_time_ms << " ms\n";
+            }
             stats_report << "    Soup->Mesh conversion: " << prep_stats.soup_to_mesh_time_ms << " ms\n";
             stats_report << "    Mesh cleanup: " << prep_stats.mesh_cleanup_time_ms << " ms\n";
             stats_report << "    Subtotal: " << prep_stats.total_time_ms << " ms\n";
@@ -471,7 +488,7 @@ cli_main(int argc, char** argv)
             = std::chrono::duration<double, std::milli>(program_end_time - program_start_time).count();
         // set std::ostringstream precision to 3 decimal places for seconds
         stats_report.precision(4);
-        stats_report << "  Total program time: " << total_program_time_ms /1000.0 << " s\n";
+        stats_report << "  Total program time: " << total_program_time_ms / 1000.0 << " s\n";
         stats_report.precision(2);
 
         logInfo(LogCategory::Cli, stats_report.str());

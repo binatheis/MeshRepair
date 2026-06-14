@@ -3,11 +3,14 @@
 #include "debug_path.h"
 #include "mesh_preprocessor.h"
 #include "logger.h"
+#include <CGAL/Polygon_mesh_processing/triangulate_hole.h>
+#include <CGAL/boost/graph/iterator.h>
 #include <CGAL/bounding_box.h>
 #include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <exception>
 #include <iomanip>
 #include <mutex>
 #include <sstream>
@@ -16,6 +19,8 @@
 #include <unordered_set>
 
 namespace MeshRepair {
+
+namespace PMP = CGAL::Polygon_mesh_processing;
 
 namespace {
 
@@ -47,6 +52,116 @@ namespace {
             }
         }
         return false;
+    }
+
+    halfedge_descriptor find_boundary_halfedge_from_loop(const Mesh& mesh, const std::vector<vertex_descriptor>& loop)
+    {
+        if (loop.size() < 2) {
+            return Mesh::null_halfedge();
+        }
+
+        for (size_t i = 0; i < loop.size(); ++i) {
+            auto from = loop[i];
+            auto to   = loop[(i + 1) % loop.size()];
+
+            if (auto h_pair = halfedge(from, to, mesh); h_pair.second && mesh.is_border(h_pair.first)) {
+                return h_pair.first;
+            }
+
+            auto hv = mesh.halfedge(from);
+            if (hv == Mesh::null_halfedge()) {
+                continue;
+            }
+
+            for (auto h : CGAL::halfedges_around_source(hv, mesh)) {
+                if (mesh.target(h) == to && mesh.is_border(h)) {
+                    return h;
+                }
+            }
+        }
+
+        return Mesh::null_halfedge();
+    }
+
+    void run_partition_stage(Mesh& mesh, const std::vector<HoleInfo>& holes, const FillingOptions& options,
+                             const char* stage_label, bool do_refine, bool do_fair)
+    {
+        for (const auto& hole : holes) {
+            if (hole.boundary_vertices.size() < 3) {
+                continue;
+            }
+
+            std::vector<vertex_descriptor> boundary;
+            boundary.reserve(hole.boundary_vertices.size());
+            for (auto v : hole.boundary_vertices) {
+                boundary.push_back(vertex_descriptor(v.idx()));
+            }
+
+            halfedge_descriptor border_h = find_boundary_halfedge_from_loop(mesh, boundary);
+            if (border_h == Mesh::null_halfedge()) {
+                continue;
+            }
+
+            std::vector<face_descriptor> patch_faces;
+            std::vector<vertex_descriptor> patch_vertices;
+
+            try {
+                if (!do_refine && !do_fair) {
+                    PMP::triangulate_hole(
+                        mesh, border_h,
+                        CGAL::parameters::face_output_iterator(std::back_inserter(patch_faces))
+                            .use_2d_constrained_delaunay_triangulation(options.use_2d_cdt)
+                            .use_delaunay_triangulation(options.use_3d_delaunay)
+                            .do_not_use_cubic_algorithm(options.skip_cubic_search));
+                } else if (do_refine && !do_fair) {
+                    PMP::triangulate_and_refine_hole(
+                        mesh, border_h,
+                        CGAL::parameters::face_output_iterator(std::back_inserter(patch_faces))
+                            .vertex_output_iterator(std::back_inserter(patch_vertices))
+                            .use_2d_constrained_delaunay_triangulation(options.use_2d_cdt)
+                            .use_delaunay_triangulation(options.use_3d_delaunay)
+                            .do_not_use_cubic_algorithm(options.skip_cubic_search));
+                } else {
+                    PMP::triangulate_refine_and_fair_hole(
+                        mesh, border_h,
+                        CGAL::parameters::face_output_iterator(std::back_inserter(patch_faces))
+                            .vertex_output_iterator(std::back_inserter(patch_vertices))
+                            .use_2d_constrained_delaunay_triangulation(options.use_2d_cdt)
+                            .use_delaunay_triangulation(options.use_3d_delaunay)
+                            .do_not_use_cubic_algorithm(options.skip_cubic_search)
+                            .fairing_continuity(options.fairing_continuity));
+                }
+            } catch (const std::exception& e) {
+                logWarn(LogCategory::Fill,
+                        std::string("[Partitioned] Step-debug ") + stage_label + " failed: " + e.what());
+            }
+        }
+    }
+
+    void dump_partition_step_debug(const std::string& prefix, const std::vector<Submesh>& submeshes,
+                                   const FillingOptions& options)
+    {
+        for (size_t i = 0; i < submeshes.size(); ++i) {
+            Mesh triangulated = submeshes[i].mesh;
+            Mesh refined      = submeshes[i].mesh;
+            Mesh faired       = submeshes[i].mesh;
+
+            run_partition_stage(triangulated, submeshes[i].holes, options, "triangulation", false, false);
+            run_partition_stage(refined, submeshes[i].holes, options, "refinement", true, false);
+            run_partition_stage(faired, submeshes[i].holes, options, "fairing", true, true);
+
+            std::ostringstream tri_oss;
+            tri_oss << prefix << "_partition_" << std::setw(3) << std::setfill('0') << i << "_triangulated.ply";
+            CGAL::IO::write_PLY(tri_oss.str(), triangulated, CGAL::parameters::use_binary_mode(true));
+
+            std::ostringstream ref_oss;
+            ref_oss << prefix << "_partition_" << std::setw(3) << std::setfill('0') << i << "_refined.ply";
+            CGAL::IO::write_PLY(ref_oss.str(), refined, CGAL::parameters::use_binary_mode(true));
+
+            std::ostringstream fair_oss;
+            fair_oss << prefix << "_partition_" << std::setw(3) << std::setfill('0') << i << "_faired.ply";
+            CGAL::IO::write_PLY(fair_oss.str(), faired, CGAL::parameters::use_binary_mode(true));
+        }
     }
 
     struct ParallelLogEntry {
@@ -630,6 +745,14 @@ parallel_fill_partitioned(ParallelPipelineCtx* ctx, bool verbose, bool debug)
             std::string debug_file = oss.str();
             CGAL::IO::write_PLY(debug_file, submeshes[i].mesh, CGAL::parameters::use_binary_mode(true));
         }
+    }
+
+    if (debug && filling_options.partition_step_debug) {
+        if (verbose) {
+            logInfo(LogCategory::Fill, "[Partitioned] Step-debug: dumping partition triangulate/refine/fair stages...");
+        }
+        std::string prefix = MeshRepair::DebugPath::start_step("partition_steps");
+        dump_partition_step_debug(prefix, submeshes, filling_options);
     }
 
     std::vector<FilledSubmesh> filled_submeshes(submeshes.size());

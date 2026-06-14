@@ -112,12 +112,16 @@ namespace Engine {
             (void)show_stats;
             (void)socket_mode;
             PreprocessingOptions options {};
-            options.remove_duplicates   = params.value("remove_duplicates", options.remove_duplicates);
-            options.remove_non_manifold = params.value("remove_non_manifold", options.remove_non_manifold);
-            options.remove_3_face_fans  = params.value("remove_3_face_fans", options.remove_3_face_fans);
-            options.remove_isolated     = params.value("remove_isolated", options.remove_isolated);
-            options.remove_long_edges   = params.value("remove_long_edges", options.remove_long_edges);
-            options.long_edge_max_ratio = params.value("max_long_edge_ratio", options.long_edge_max_ratio);
+            options.remove_duplicates    = params.value("remove_duplicates", options.remove_duplicates);
+            options.remove_non_manifold  = params.value("remove_non_manifold", options.remove_non_manifold);
+            options.remove_3_face_fans   = params.value("remove_3_face_fans", options.remove_3_face_fans);
+            options.remove_isolated      = params.value("remove_isolated", options.remove_isolated);
+            options.remove_long_edges    = params.value("remove_long_edges", options.remove_long_edges);
+            options.long_edge_max_ratio  = params.value("max_long_edge_ratio", options.long_edge_max_ratio);
+            options.remove_thin_bridges  = params.value("remove_thin_bridges", options.remove_thin_bridges);
+            options.thin_bridge_max_hops = params.value("thin_bridge_max_hops", options.thin_bridge_max_hops);
+            options.thin_bridge_min_boundary_separation = params.value("thin_bridge_min_boundary_separation",
+                                                                       options.thin_bridge_min_boundary_separation);
             // IPC: default to false unless explicitly true to avoid accidental pruning when addon omits the field
             options.keep_largest_component = params.value("keep_largest_component", false);
             options.non_manifold_passes    = params.value("non_manifold_passes", options.non_manifold_passes);

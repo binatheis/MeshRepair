@@ -243,6 +243,7 @@ namespace Engine {
         log("info", "Preprocessing complete");
         log("info", "  Duplicates merged: " + std::to_string(preprocess_stats_.duplicates_merged));
         log("info", "  Non-manifold removed: " + std::to_string(preprocess_stats_.non_manifold_vertices_removed));
+        log("info", "  Thin bridges removed: " + std::to_string(preprocess_stats_.thin_bridge_polygons_removed));
         log("info", "  3-face fans collapsed: " + std::to_string(preprocess_stats_.face_fans_collapsed));
         log("info", "  Isolated removed: " + std::to_string(preprocess_stats_.isolated_vertices_removed));
         log("info", "  Small components removed: " + std::to_string(preprocess_stats_.small_components_removed));
@@ -488,6 +489,7 @@ namespace Engine {
         stats["duplicates_merged"]             = preprocess_stats_.duplicates_merged;
         stats["non_manifold_vertices_removed"] = preprocess_stats_.non_manifold_vertices_removed;
         stats["long_edge_polygons_removed"]    = preprocess_stats_.long_edge_polygons_removed;
+        stats["thin_bridge_polygons_removed"]  = preprocess_stats_.thin_bridge_polygons_removed;
         stats["face_fans_collapsed"]           = preprocess_stats_.face_fans_collapsed;
         stats["isolated_vertices_removed"]     = preprocess_stats_.isolated_vertices_removed;
         stats["small_components_removed"]      = preprocess_stats_.small_components_removed;
@@ -495,6 +497,7 @@ namespace Engine {
         stats["total_time_ms"]                 = preprocess_stats_.total_time_ms;
         stats["soup_cleanup_time_ms"]          = preprocess_stats_.soup_cleanup_time_ms;
         stats["long_edge_time_ms"]             = preprocess_stats_.long_edge_time_ms;
+        stats["thin_bridge_time_ms"]           = preprocess_stats_.thin_bridge_time_ms;
         stats["soup_to_mesh_time_ms"]          = preprocess_stats_.soup_to_mesh_time_ms;
         stats["mesh_cleanup_time_ms"]          = preprocess_stats_.mesh_cleanup_time_ms;
         return stats;

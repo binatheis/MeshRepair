@@ -40,6 +40,7 @@ struct FillingOptions {
     bool use_3d_delaunay              = Config::DEFAULT_USE_3D_DELAUNAY;
     bool skip_cubic_search            = Config::DEFAULT_SKIP_CUBIC;
     bool refine                       = Config::DEFAULT_REFINE;
+    bool partition_step_debug         = false;  // Debug: dump per-partition triangulate/refine/fair stages (trace only)
     std::set<uint32_t> selection_boundary_vertices;
     bool guard_selection_boundary       = true;
     double reference_bbox_diagonal      = 0.0;
