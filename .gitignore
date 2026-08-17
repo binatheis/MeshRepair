@@ -370,3 +370,15 @@ FodyWeavers.xsd
 /nvTIFF
 /build_vs
 /build_u
+
+# Conan / scikit-build-core / cibuildwheel artifacts
+build*/
+conan-out/
+.conan-home/
+.conan2/
+wheelhouse/
+dist/
+*.egg-info/
+.venv/
+venv/
+CMakeUserPresets.json

@@ -1,13 +1,8 @@
 # Build and deploy Jekyll site from ./docs to GitHub Pages
 name: Deploy MeshRepair docs to GitHub Pages
 
+# Manual only: wheels.yml owns push-triggered CI now.
 on:
-  push:
-    branches: ["main"]
-    # Optional: only rebuild when docs or workflow change
-    paths:
-      - "docs/**"
-      - ".github/workflows/jekyll-gh-pages.yml"
   workflow_dispatch:
 
 permissions:

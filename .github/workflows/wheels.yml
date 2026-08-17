@@ -1,0 +1,141 @@
+name: wheels
+
+# Build native test suite + Python wheels (cp311-abi3) on 3 platforms.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+concurrency:
+  group: wheels-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  native-tests:
+    name: Native tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+          - os: windows-2022
+          - os: macos-15
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache Conan
+        uses: actions/cache@v4
+        with:
+          path: ~/.conan2
+          key: conan-native-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('conanfile.py') }}
+
+      - name: Install tooling
+        run: pip install conan
+
+      - name: Conan install
+        run: conan install . -of build/conan -b missing -s build_type=Release
+
+      - name: Configure (Linux, non-native arch for portability)
+        if: runner.os == 'Linux'
+        run: |
+          cmake -B build \
+            -DCMAKE_TOOLCHAIN_FILE=build/conan/conan_toolchain.cmake \
+            -DCMAKE_PREFIX_PATH=build/conan \
+            -DBUILD_MESHREPAIR_GUI=OFF \
+            -DMESHREPAIR_ENABLE_NATIVE_ARCH=OFF \
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Configure (Windows / macOS)
+        if: runner.os != 'Linux'
+        shell: bash
+        run: |
+          cmake -B build \
+            -DCMAKE_TOOLCHAIN_FILE=build/conan/conan_toolchain.cmake \
+            -DCMAKE_PREFIX_PATH=build/conan \
+            -DBUILD_MESHREPAIR_GUI=OFF \
+            -DMESHREPAIR_ENABLE_NATIVE_ARCH=OFF
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+
+  wheels:
+    name: Wheel ${{ matrix.cibw_os }} ${{ matrix.cibw_arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            cibw_os: linux
+            cibw_arch: x86_64
+          - os: windows-2022
+            cibw_os: windows
+            cibw_arch: AMD64
+          - os: macos-15
+            cibw_os: macos
+            cibw_arch: arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v3
+        with:
+          package-dir: bindings/python
+          output-dir: wheelhouse
+        env:
+          CIBW_BUILD: cp311-abi3-*
+          CIBW_ARCHS: ${{ matrix.cibw_arch }}
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
+          CIBW_ENVIRONMENT_LINUX: >-
+            CONAN_HOME={project}/.conan-home
+          CIBW_ENVIRONMENT_MACOS: >-
+            MACOSX_DEPLOYMENT_TARGET=13.0
+            CONAN_HOME={project}/.conan-home
+          CIBW_BEFORE_ALL: >-
+            pip install conan &&
+            conan profile detect --force &&
+            conan install . -of conan-out -b missing -s build_type=Release
+          CIBW_BEFORE_BUILD: pip install conan
+          # Route the Conan toolchain into scikit-build-core's CMake call.
+          CIBW_CONFIG_SETTINGS: >
+            cmake_args="-DCMAKE_TOOLCHAIN_FILE={project}/conan-out/conan_toolchain.cmake;-DCMAKE_PREFIX_PATH={project}/conan-out"
+          CIBW_TEST_REQUIRES: pytest
+          CIBW_TEST_COMMAND: pytest {project}/bindings/python/tests -v
+
+      - name: Cache Conan home (host-side, speeds before-all on repeat runs)
+        uses: actions/cache@v4
+        with:
+          path: .conan-home
+          key: conan-wheels-${{ runner.os }}-${{ matrix.cibw_arch }}-${{ hashFiles('conanfile.py') }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.cibw_os }}-${{ matrix.cibw_arch }}
+          path: wheelhouse/*.whl
+
+  # Future: publish to PyPI with trusted publishing. Kept commented per plan.
+  # publish:
+  #   needs: [native-tests, wheels]
+  #   if: startsWith(github.ref, 'refs/tags/v')
+  #   runs-on: ubuntu-latest
+  #   environment: pypi
+  #   permissions:
+  #     id-token: write
+  #   steps:
+  #     - uses: actions/download-artifact@v4
+  #       with:
+  #         path: wheelhouse
+  #         merge-multiple: true
+  #     - uses: pypa/gh-action-pypi-publish@release/v1

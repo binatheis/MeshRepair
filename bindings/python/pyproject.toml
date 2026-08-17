@@ -1,0 +1,76 @@
+# MeshRepair Python binding — nanobind + scikit-build-core + Conan.
+#
+# Build a wheel locally:
+#   conan install . -of conan-out -b missing -s build_type=Release
+#   CMAKE_ARGS="-DCMAKE_TOOLCHAIN_FILE=$PWD/conan-out/conan_toolchain.cmake -DCMAKE_PREFIX_PATH=$PWD/conan-out" \
+#     pip wheel bindings/python -w wheelhouse
+#
+# Or with cibuildwheel (see [tool.cibuildwheel] below for the exact recipe).
+
+[build-system]
+requires = ["scikit-build-core>=0.10", "nanobind>=2.13,<3"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "meshrepair"
+version = "2.8.0"
+description = "Mesh hole filling and repair (CGAL Liepa/Botsch) with a partitioned parallel pipeline"
+readme = "README.md"
+license = { text = "GPL-3.0-or-later" }
+requires-python = ">=3.11"
+authors = [{ name = "MeshRepair contributors" }]
+keywords = ["mesh", "repair", "hole-filling", "cgal", "geometry"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Programming Language :: C++",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Multimedia :: Graphics :: 3D Modeling",
+    "Topic :: Scientific/Engineering :: Mathematics",
+]
+
+[tool.scikit-build]
+cmake.version = ">=3.20"
+cmake.source-dir = "../.."
+wheel.packages = ["src/meshrepair"]
+# Stable ABI: one wheel per platform, valid for CPython 3.11 -> 3.14.
+wheel.py-api = "cp311"
+build-dir = "build/{wheel_tag}"
+sdist.include = [
+    "../../meshrepair/**",
+    "../../CMakeLists.txt",
+    "../../conanfile.py",
+    "../../cmake/**",
+]
+
+[tool.cibuildwheel]
+# Parity between local and CI: Conan deps installed before the CMake build.
+before-all = "conan profile detect --force && conan install . -of conan-out -b missing -s build_type=Release"
+environment = { CONAN_HOME = "{project}/.conan-home" }
+
+[tool.cibuildwheel.config-settings]
+# Route the Conan toolchain + deps into scikit-build-core's CMake invocation.
+cmake_args = [
+    "-DCMAKE_TOOLCHAIN_FILE={project}/conan-out/conan_toolchain.cmake",
+    "-DCMAKE_PREFIX_PATH={project}/conan-out",
+]
+
+[tool.cibuildwheel.linux]
+# Modern gcc via manylinux_2_28 (CGAL 6 needs a recent toolchain).
+manylinux-x86_64-image = "manylinux_2_28"
+
+[tool.cibuildwheel.macos]
+environment = { MACOSX_DEPLOYMENT_TARGET = "13.0", CONAN_HOME = "{project}/.conan-home" }
+
+[tool.cibuildwheel.test]
+requires = ["pytest"]
+command = "pytest {project}/bindings/python/tests -v"

@@ -65,11 +65,34 @@ option(ENABLE_OPENMP "Enable OpenMP for parallel processing" ON)
 option(ENABLE_TBB "Enable oneTBB for parallel processing" ON)
 option(MESHREPAIR_USE_SPDLOG "Use spdlog for logging (if available)" ON)
 option(BUILD_MESHREPAIR_GUI "Build MeshRepair GUI (GLFW + ImGui)" ON)
+option(MESHREPAIR_BUILD_PYTHON_BINDING "Build the nanobind Python binding (meshrepair wheel)" OFF)
+
+# scikit-build-core drives the build when producing Python wheels.
+# Wheels want: binding ON, GUI/tests OFF, portable flags OFF (no -march/native,
+# no LTO) and no OpenMP runtime dependency.
+if(SKBUILD)
+    set(MESHREPAIR_BUILD_PYTHON_BINDING ON)
+    set(BUILD_MESHREPAIR_GUI OFF)
+    set(BUILD_TESTS OFF)
+    set(ENABLE_OPENMP OFF)
+    set(MESHREPAIR_ENABLE_NATIVE_ARCH OFF)
+    set(MESHREPAIR_ENABLE_LTO OFF)
+endif()
 
 # Platform-specific settings
 if(WIN32)
     add_definitions(-DNOMINMAX)
     add_definitions(-D_USE_MATH_DEFINES)
+    # Disable MSBuild's user-wide vcpkg integration, which silently copies
+    # shared DLLs (e.g. gmp-10.dll) next to binaries and breaks the
+    # self-contained static-linking contract used by the Python wheel.
+    # Conan provides all dependencies; vcpkg must not interfere.
+    # This is a no-op on non-Visual-Studio generators.
+    if(CMAKE_GENERATOR MATCHES "Visual Studio")
+        set(CMAKE_VS_GLOBALS
+            "VcpkgEnabled=false"
+            "VcpkgEnableManifest=false")
+    endif()
 endif()
 
 set(MESHREPAIR_LIBCXX_FLAG "" CACHE INTERNAL "Use libc++ when building with Clang")
@@ -136,8 +159,11 @@ endif()
 # Enable CGAL to use Eigen for fairing
 add_definitions(-DCGAL_EIGEN3_ENABLED)
 
-# Find Boost (required by CGAL)
-find_package(Boost REQUIRED)
+# Find Boost (required by CGAL).
+# CONFIG mode: FindBoost (module mode) was removed in CMake 4.0, and Conan's
+# CMakeDeps generator only produces config packages. Prefer config explicitly.
+set(CMAKE_FIND_PACKAGE_PREFER_CONFIG ON)
+find_package(Boost CONFIG REQUIRED)
 if(NOT Boost_FOUND)
     message(WARNING "Boost not found. CGAL may require Boost for some features.")
 endif()
@@ -196,17 +222,34 @@ endif()
 find_package(Threads REQUIRED)
 
 # Include directories
+# - meshrepair/include : public headers ("types.h", "hole_ops.h", ...)
+# - meshrepair         : engine headers ("engine/mesh_binary.h") and internal
+#                       relative includes ("include/config.h") for tests/binding
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/meshrepair/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/meshrepair
 )
 
 # Find RapidOBJ (header-only library for fast OBJ parsing)
-find_package(RapidOBJ QUIET)
-if(RapidOBJ_FOUND)
-    message(STATUS "RapidOBJ found: ${RapidOBJ_INCLUDE_DIR}")
+# Vendored copy wins: meshrepair/include/rapidobj/rapidobj.hpp (MIT, committed).
+# Falls back to find_package (cmake/FindRapidOBJ.cmake) for dev environments.
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/meshrepair/include/rapidobj/rapidobj.hpp")
+    message(STATUS "RapidOBJ: using vendored header (meshrepair/include/rapidobj/rapidobj.hpp)")
+    set(RapidOBJ_FOUND TRUE)
+    set(RAPIDOBJ_VENDORED TRUE)
     add_definitions(-DHAVE_RAPIDOBJ)
+    if(NOT TARGET RapidOBJ::RapidOBJ)
+        add_library(RapidOBJ INTERFACE IMPORTED)
+        add_library(RapidOBJ::RapidOBJ ALIAS RapidOBJ)
+    endif()
 else()
-    message(STATUS "RapidOBJ not found - OBJ loading will use CGAL parser (slower)")
+    find_package(RapidOBJ QUIET)
+    if(RapidOBJ_FOUND)
+        message(STATUS "RapidOBJ found: ${RapidOBJ_INCLUDE_DIR}")
+        add_definitions(-DHAVE_RAPIDOBJ)
+    else()
+        message(STATUS "RapidOBJ not found - OBJ loading will use CGAL parser (slower)")
+    endif()
 endif()
 
 # Find nlohmann/json (header-only library for JSON parsing)
@@ -504,6 +547,12 @@ if(APPLE AND TARGET TBB::tbb)
             install(FILES ${_tbb_dylibs} DESTINATION "MeshRepair.app/Contents/Frameworks")
         endif()
     endif()
+endif()
+
+# Python binding (nanobind wheel). Driven by scikit-build-core (SKBUILD) or
+# the explicit MESHREPAIR_BUILD_PYTHON_BINDING option.
+if(MESHREPAIR_BUILD_PYTHON_BINDING)
+    add_subdirectory(bindings/python)
 endif()
 
 # Tests

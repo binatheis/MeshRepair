@@ -1,22 +1,25 @@
-# Tests for MeshRepair
+# MeshRepair test suite (GoogleTest, synthetic meshes generated in code).
 
-# Simple test that just runs the executable with --help
-add_test(
-    NAME test_help
-    COMMAND mesh_hole_filler --help
+find_package(GTest CONFIG REQUIRED)
+
+add_executable(meshrepair_tests
+    src/test_mesh_binary.cpp
+    src/test_protocol.cpp
+    src/test_hole_ops.cpp
+    src/test_preprocessor.cpp
+    src/test_pipeline.cpp
 )
 
-# Test that checks for missing arguments
-add_test(
-    NAME test_no_args
-    COMMAND mesh_hole_filler
+target_link_libraries(meshrepair_tests
+    PRIVATE
+        meshrepair_core
+        GTest::gtest_main
 )
-set_tests_properties(test_no_args PROPERTIES WILL_FAIL TRUE)
 
-# TODO: Add more tests with actual test meshes
-# add_test(
-#     NAME test_simple_cube
-#     COMMAND mesh_hole_filler
-#         ${CMAKE_CURRENT_SOURCE_DIR}/test_data/cube_with_hole.obj
-#         ${CMAKE_CURRENT_BINARY_DIR}/cube_repaired.obj
-# )
+if(MSVC)
+    # Innocuous for tests; core already carries /W4 /permissive- etc.
+    target_compile_options(meshrepair_tests PRIVATE /EHsc /MP)
+endif()
+
+include(GoogleTest)
+gtest_discover_tests(meshrepair_tests DISCOVERY_TIMEOUT 120)
