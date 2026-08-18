@@ -56,9 +56,15 @@ sdist.include = [
 # Native tests + Conan install run on the host before cibuildwheel.
 # Linux: cibuildwheel runs in manylinux Docker, needs its own Conan install.
 # Windows/macOS: cibuildwheel runs on the host, reuses the existing Conan install.
+# NOTE: test options are flat keys here — cibuildwheel rejects a [tool.cibuildwheel.test] table.
+test-requires = ["pytest"]
+test-command = "pytest {project}/bindings/python/tests -v"
 
 [tool.cibuildwheel.config-settings]
-cmake_args = [
+# Quoted key keeps the dot literal so the table stays flat (a nested
+# `cmake.args` table would be stringified to a Python dict repr by cibuildwheel).
+# scikit-build-core maps "cmake.args" to its CMake args list.
+"cmake.args" = [
     "-DCMAKE_TOOLCHAIN_FILE={project}/conan-out/conan_toolchain.cmake",
     "-DCMAKE_PREFIX_PATH={project}/conan-out",
 ]
@@ -70,7 +76,3 @@ before-all = "pip install conan && conan profile detect --force && conan install
 
 [tool.cibuildwheel.macos]
 environment = { MACOSX_DEPLOYMENT_TARGET = "13.0" }
-
-[tool.cibuildwheel.test]
-requires = ["pytest"]
-command = "pytest {project}/bindings/python/tests -v"
