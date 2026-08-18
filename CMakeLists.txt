@@ -375,6 +375,13 @@ add_library(meshrepair_core STATIC
     ${MESHREPAIR_HEADERS}
 )
 
+# PIC required: the core objects are linked into the Python extension
+# (shared module) on Linux. CGAL's vendored CoreEx memory pool uses
+# thread_local (CGAL/CORE/MemoryPool.h), and without -fPIC GCC emits
+# local-exec TLS relocations (R_X86_64_TPOFF32) that GNU ld rejects when
+# building a shared object ("failed to set dynamic section sizes").
+set_target_properties(meshrepair_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 target_link_libraries(meshrepair_core
     PUBLIC
         CGAL::CGAL
