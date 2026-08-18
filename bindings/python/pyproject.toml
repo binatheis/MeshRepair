@@ -42,8 +42,10 @@ classifiers = [
 cmake.version = ">=3.20"
 cmake.source-dir = "../.."
 wheel.packages = ["src/meshrepair"]
-# No stable-ABI (abi3): nanobind uses non-abi3 symbols on MSVC (Py_CompileStringExFlags,
-# _PyObject_LookupAttr) that abi3audit rejects. Build per-CPython-version wheels instead.
+# No wheel.py-api here: nanobind's abi3 baseline is fixed at Python 3.12
+# (Py_LIMITED_API=0x030C0000). The cp312 build therefore produces the abi3
+# wheel (cp312-abi3, valid for 3.12 -> 3.14) via the cibuildwheel override
+# below, while cp311 keeps a dedicated version-specific wheel (cp311-cp311).
 build-dir = "build/{wheel_tag}"
 sdist.include = [
     "../../meshrepair/**",
@@ -69,6 +71,12 @@ test-command = "pytest {project}/bindings/python/tests -v"
     "-DCMAKE_PREFIX_PATH={project}/conan-out",
     "-DENABLE_TBB=OFF",
 ]
+
+[[tool.cibuildwheel.overrides]]
+# CPython >= 3.12: build the stable-ABI module (cp312-abi3 wheel, one wheel for
+# 3.12/3.13/3.14). CPython 3.11 keeps a dedicated cp311-cp311 wheel.
+select = "cp312-*"
+config-settings = { "wheel.py-api" = "cp312", "cmake.define.MESHREPAIR_BUILD_ABI3" = "ON" }
 
 [tool.cibuildwheel.linux]
 manylinux-x86_64-image = "manylinux_2_28"

@@ -5,7 +5,13 @@ cmake_minimum_required(VERSION 3.20...3.28)
 
 # Python + nanobind discovery. scikit-build-core provides Python; nanobind is
 # a pip build requirement, so locate its CMake helpers via the interpreter.
-find_package(Python 3.11 REQUIRED COMPONENTS Interpreter Development.Module)
+# Stable-ABI builds (MESHREPAIR_BUILD_ABI3) additionally need Development.SABIModule.
+set(MESHREPAIR_BUILD_ABI3 OFF CACHE BOOL "Build the Python extension with the stable ABI (abi3)")
+set(_python_components Interpreter Development.Module)
+if(MESHREPAIR_BUILD_ABI3)
+    list(APPEND _python_components Development.SABIModule)
+endif()
+find_package(Python 3.11 REQUIRED COMPONENTS ${_python_components})
 
 execute_process(
     COMMAND "${Python_EXECUTABLE}" -c "import nanobind; print(nanobind.cmake_dir())"
@@ -20,8 +26,16 @@ list(APPEND CMAKE_PREFIX_PATH "${_nanobind_cmake_dir}")
 
 find_package(nanobind CONFIG REQUIRED)
 
+# nanobind's abi3 core is compiled with Py_LIMITED_API=0x030C0000 (Python 3.12),
+# so abi3 wheels must be tagged cp312 and only CPython >= 3.12 can load them.
+# CPython 3.11 gets a dedicated non-abi3 wheel instead (see pyproject overrides).
+set(_meshrepair_nanobind_abi3 "")
+if(MESHREPAIR_BUILD_ABI3)
+    set(_meshrepair_nanobind_abi3 "STABLE_ABI")
+endif()
 nanobind_add_module(
     meshrepair_core_py
+    ${_meshrepair_nanobind_abi3}
     NB_DOMAIN MeshRepair
     src/meshrepair_py.cpp
 )

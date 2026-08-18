@@ -76,7 +76,7 @@ jobs:
           package-dir: bindings/python
           output-dir: wheelhouse
         env:
-          CIBW_BUILD: cp311-*
+          CIBW_BUILD: "cp311-* cp312-*"
           CIBW_SKIP: "*-musllinux*"
           CIBW_ARCHS: ${{ matrix.cibw_arch }}
 
