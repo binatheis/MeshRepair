@@ -54,8 +54,8 @@ jobs:
       - name: Conan install
         run: conan install . -of conan-out -b missing -s build_type=Release -s compiler.cppstd=20
 
-      - name: Configure (Linux)
-        if: runner.os == 'Linux'
+      - name: Configure
+        shell: bash
         run: |
           cmake -B build \
             -DCMAKE_TOOLCHAIN_FILE=conan-out/conan_toolchain.cmake \
@@ -63,16 +63,6 @@ jobs:
             -DBUILD_MESHREPAIR_GUI=OFF \
             -DMESHREPAIR_ENABLE_NATIVE_ARCH=OFF \
             -DCMAKE_BUILD_TYPE=Release
-
-      - name: Configure (Windows / macOS)
-        if: runner.os != 'Linux'
-        shell: bash
-        run: |
-          cmake -B build \
-            -DCMAKE_TOOLCHAIN_FILE=conan-out/conan_toolchain.cmake \
-            -DCMAKE_PREFIX_PATH=conan-out \
-            -DBUILD_MESHREPAIR_GUI=OFF \
-            -DMESHREPAIR_ENABLE_NATIVE_ARCH=OFF
 
       - name: Build native
         run: cmake --build build --config Release
