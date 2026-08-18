@@ -53,23 +53,23 @@ sdist.include = [
 ]
 
 [tool.cibuildwheel]
-# Parity between local and CI: Conan deps installed before the CMake build.
-before-all = "conan profile detect --force && conan install . -of conan-out -b missing -s build_type=Release"
-environment = { CONAN_HOME = "{project}/.conan-home" }
+# Native tests + Conan install run on the host before cibuildwheel.
+# Linux: cibuildwheel runs in manylinux Docker, needs its own Conan install.
+# Windows/macOS: cibuildwheel runs on the host, reuses the existing Conan install.
+before-all-linux = "pip install conan && conan profile detect --force && conan install . -of conan-out -b missing -s build_type=Release"
 
 [tool.cibuildwheel.config-settings]
-# Route the Conan toolchain + deps into scikit-build-core's CMake invocation.
 cmake_args = [
     "-DCMAKE_TOOLCHAIN_FILE={project}/conan-out/conan_toolchain.cmake",
     "-DCMAKE_PREFIX_PATH={project}/conan-out",
 ]
 
 [tool.cibuildwheel.linux]
-# Modern gcc via manylinux_2_28 (CGAL 6 needs a recent toolchain).
 manylinux-x86_64-image = "manylinux_2_28"
+environment = { CONAN_HOME = "{project}/.conan-home" }
 
 [tool.cibuildwheel.macos]
-environment = { MACOSX_DEPLOYMENT_TARGET = "13.0", CONAN_HOME = "{project}/.conan-home" }
+environment = { MACOSX_DEPLOYMENT_TARGET = "13.0" }
 
 [tool.cibuildwheel.test]
 requires = ["pytest"]
