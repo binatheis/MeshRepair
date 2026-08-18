@@ -42,8 +42,8 @@ classifiers = [
 cmake.version = ">=3.20"
 cmake.source-dir = "../.."
 wheel.packages = ["src/meshrepair"]
-# Stable ABI: one wheel per platform, valid for CPython 3.11 -> 3.14.
-wheel.py-api = "cp311"
+# No stable-ABI (abi3): nanobind uses non-abi3 symbols on MSVC (Py_CompileStringExFlags,
+# _PyObject_LookupAttr) that abi3audit rejects. Build per-CPython-version wheels instead.
 build-dir = "build/{wheel_tag}"
 sdist.include = [
     "../../meshrepair/**",
@@ -67,11 +67,13 @@ test-command = "pytest {project}/bindings/python/tests -v"
 "cmake.args" = [
     "-DCMAKE_TOOLCHAIN_FILE={project}/conan-out/conan_toolchain.cmake",
     "-DCMAKE_PREFIX_PATH={project}/conan-out",
+    "-DENABLE_TBB=OFF",
 ]
 
 [tool.cibuildwheel.linux]
 manylinux-x86_64-image = "manylinux_2_28"
-environment = { CONAN_HOME = "{project}/.conan-home" }
+# NOTE: {project} is NOT substituted in the environment table — only in shell
+# commands.  Use the default CONAN_HOME (~/.conan2) inside the manylinux container.
 before-all = "pip install conan && conan profile detect --force && conan install . -of conan-out -b missing -s build_type=Release -s compiler.cppstd=20"
 
 [tool.cibuildwheel.macos]

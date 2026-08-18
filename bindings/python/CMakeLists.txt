@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.20...3.28)
 
 # Python + nanobind discovery. scikit-build-core provides Python; nanobind is
 # a pip build requirement, so locate its CMake helpers via the interpreter.
-find_package(Python 3.11 REQUIRED COMPONENTS Interpreter Development.Module Development.SABIModule)
+find_package(Python 3.11 REQUIRED COMPONENTS Interpreter Development.Module)
 
 execute_process(
     COMMAND "${Python_EXECUTABLE}" -c "import nanobind; print(nanobind.cmake_dir())"
@@ -22,7 +22,6 @@ find_package(nanobind CONFIG REQUIRED)
 
 nanobind_add_module(
     meshrepair_core_py
-    STABLE_ABI
     NB_DOMAIN MeshRepair
     src/meshrepair_py.cpp
 )

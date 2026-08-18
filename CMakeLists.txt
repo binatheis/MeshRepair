@@ -75,6 +75,7 @@ if(SKBUILD)
     set(BUILD_MESHREPAIR_GUI OFF)
     set(BUILD_TESTS OFF)
     set(ENABLE_OPENMP OFF)
+    set(ENABLE_TBB OFF)
     set(MESHREPAIR_ENABLE_NATIVE_ARCH OFF)
     set(MESHREPAIR_ENABLE_LTO OFF)
 endif()
@@ -522,29 +523,32 @@ if(BUILD_MESHREPAIR_GUI)
     add_subdirectory(meshrepair-gui)
 endif()
 
-# Installation
-install(TARGETS meshrepair RUNTIME DESTINATION bin)
+# Installation — skip CLI/app installs when building under scikit-build (wheels
+# only ship the Python extension module, not the standalone executable).
+if(NOT SKBUILD)
+    install(TARGETS meshrepair RUNTIME DESTINATION bin)
 
-if(APPLE)
-    # Also bundle the CLI/engine into the .app so external integrations (e.g., Blender addon)
-    # can point to a single canonical engine shipped with the app.
-    # Note: this duplicates the binary in bin/ for convenience.
-    install(TARGETS meshrepair RUNTIME DESTINATION "MeshRepair.app/Contents/MacOS")
-endif()
-
-if(APPLE AND TARGET TBB::tbb)
-    # Bundle oneTBB dylibs next to the executable so @rpath lookups succeed via @executable_path.
-    get_target_property(_tbb_location TBB::tbb IMPORTED_LOCATION)
-    if(NOT _tbb_location)
-        get_target_property(_tbb_location TBB::tbb IMPORTED_LOCATION_RELEASE)
+    if(APPLE)
+        # Also bundle the CLI/engine into the .app so external integrations (e.g., Blender addon)
+        # can point to a single canonical engine shipped with the app.
+        # Note: this duplicates the binary in bin/ for convenience.
+        install(TARGETS meshrepair RUNTIME DESTINATION "MeshRepair.app/Contents/MacOS")
     endif()
-    if(_tbb_location)
-        get_filename_component(_tbb_dir "${_tbb_location}" DIRECTORY)
-        file(GLOB _tbb_dylibs "${_tbb_dir}/libtbb*.dylib")
-        if(_tbb_dylibs)
-            install(FILES ${_tbb_dylibs} DESTINATION bin)
-            # Also bundle for the .app/Contents/Frameworks so the bundled CLI can resolve deps.
-            install(FILES ${_tbb_dylibs} DESTINATION "MeshRepair.app/Contents/Frameworks")
+
+    if(APPLE AND TARGET TBB::tbb)
+        # Bundle oneTBB dylibs next to the executable so @rpath lookups succeed via @executable_path.
+        get_target_property(_tbb_location TBB::tbb IMPORTED_LOCATION)
+        if(NOT _tbb_location)
+            get_target_property(_tbb_location TBB::tbb IMPORTED_LOCATION_RELEASE)
+        endif()
+        if(_tbb_location)
+            get_filename_component(_tbb_dir "${_tbb_location}" DIRECTORY)
+            file(GLOB _tbb_dylibs "${_tbb_dir}/libtbb*.dylib")
+            if(_tbb_dylibs)
+                install(FILES ${_tbb_dylibs} DESTINATION bin)
+                # Also bundle for the .app/Contents/Frameworks so the bundled CLI can resolve deps.
+                install(FILES ${_tbb_dylibs} DESTINATION "MeshRepair.app/Contents/Frameworks")
+            endif()
         endif()
     endif()
 endif()
