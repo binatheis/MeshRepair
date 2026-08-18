@@ -75,7 +75,11 @@ test-command = "pytest {project}/bindings/python/tests -v"
 [[tool.cibuildwheel.overrides]]
 # CPython >= 3.12: build the stable-ABI module (cp312-abi3 wheel, one wheel for
 # 3.12/3.13/3.14). CPython 3.11 keeps a dedicated cp311-cp311 wheel.
+# inherit.config-settings = "append" merges this table key-by-key with the base
+# [tool.cibuildwheel.config-settings] (the default is "none" = full replace,
+# which would drop the Conan toolchain args and lose CGAL).
 select = "cp312-*"
+inherit.config-settings = "append"
 config-settings = { "wheel.py-api" = "cp312", "cmake.define.MESHREPAIR_BUILD_ABI3" = "ON" }
 
 [tool.cibuildwheel.linux]
