@@ -52,7 +52,7 @@ jobs:
           key: conan-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('conanfile.py') }}
 
       - name: Conan install
-        run: conan install . -of conan-out -b missing -s build_type=Release
+        run: conan install . -of conan-out -b missing -s build_type=Release -s compiler.cppstd=20
 
       - name: Configure (Linux)
         if: runner.os == 'Linux'

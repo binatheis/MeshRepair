@@ -8,6 +8,7 @@
 #   cmake --build build --config Release
 
 from conan import ConanFile
+from conan.tools.build import check_min_cppstd
 
 
 class MeshRepairConan(ConanFile):
@@ -48,3 +49,9 @@ class MeshRepairConan(ConanFile):
         # which is required for CPython extension compatibility.
         if self.settings.os == "Windows":
             self.options["gtest/*"].shared = False
+
+    def validate(self):
+        # CMakeLists.txt requires C++20 (spdlog/std::format).
+        # CGAL 6.2 and GTest 1.18.0 require at least C++17.
+        # This gives a clear error if the profile's cppstd is too low.
+        check_min_cppstd(self, 20)

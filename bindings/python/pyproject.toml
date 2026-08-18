@@ -56,7 +56,7 @@ sdist.include = [
 # Native tests + Conan install run on the host before cibuildwheel.
 # Linux: cibuildwheel runs in manylinux Docker, needs its own Conan install.
 # Windows/macOS: cibuildwheel runs on the host, reuses the existing Conan install.
-before-all-linux = "pip install conan && conan profile detect --force && conan install . -of conan-out -b missing -s build_type=Release"
+before-all-linux = "pip install conan && conan profile detect --force && conan install . -of conan-out -b missing -s build_type=Release -s compiler.cppstd=20"
 
 [tool.cibuildwheel.config-settings]
 cmake_args = [
